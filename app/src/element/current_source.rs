@@ -1,4 +1,4 @@
-use egui::{Color32, Pos2, Stroke};
+use egui::{Color32, Stroke};
 
 use circuit::default_conductors::CurrentSource;
 
@@ -20,11 +20,9 @@ impl Render for CurrentSource {
 }
 
 pub fn render_current_source(endpoints: [ElementPos; 2], painter: Painter<'_>, color: Color32) {
-    let endpoints = endpoints.map(ElementPos::into_vec);
+    let endpoints = endpoints.map(ElementPos::into_pos);
 
     let stroke = Stroke::new(2.0, color);
-
-    let endpoints = endpoints.map(|pos| Pos2::new(pos.x as f32, pos.y as f32));
 
     let l = endpoints[1] - endpoints[0];
     let length = l.length();
