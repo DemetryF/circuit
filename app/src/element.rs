@@ -41,7 +41,7 @@ impl<'data> Element<'data> {
     }
 
     fn render_charges(&self, endpoints: [ElementPos; 2], painter: Painter<'_>) {
-        let endpoints = endpoints.map(ElementPos::into_vec);
+        let endpoints = endpoints.map(ElementPos::into_pos);
 
         let dist = endpoints[1] - endpoints[0];
         let length = dist.length();
@@ -52,7 +52,6 @@ impl<'data> Element<'data> {
 
         for n in 0..charges_count {
             let pos = endpoints[0] + (self.shift + n as f32 * CHARGE_DISTANCE) * dir;
-            let pos = pos.to_pos2();
 
             let rect = Rect::from_min_size(
                 pos - Vec2::splat(CHARGE_SIZE / 2.0),
@@ -64,7 +63,7 @@ impl<'data> Element<'data> {
     }
 
     pub fn includes(&self, endpoints: [ElementPos; 2], point: Pos2) -> bool {
-        let endpoints = endpoints.map(|point| point.into_vec().to_pos2());
+        let endpoints = endpoints.map(ElementPos::into_pos);
 
         let min_y = f32::min(endpoints[0].y, endpoints[1].y);
         let max_y = f32::max(endpoints[0].y, endpoints[1].y);
@@ -183,16 +182,16 @@ pub struct ElementPos {
 pub const CELL_SIZE: f32 = 20.0;
 
 impl ElementPos {
-    pub fn from_vec(vec: impl Into<Vec2>) -> Self {
-        let vec = vec.into();
+    pub fn from_pos(pos: impl Into<Pos2>) -> Self {
+        let pos = pos.into();
 
         Self {
-            x: (vec.x / CELL_SIZE).round() as isize,
-            y: (vec.y / CELL_SIZE).round() as isize,
+            x: (pos.x / CELL_SIZE).round() as isize,
+            y: (pos.y / CELL_SIZE).round() as isize,
         }
     }
 
-    pub fn into_vec(self) -> Vec2 {
-        Vec2::new((self.x as f32) * CELL_SIZE, (self.y as f32) * CELL_SIZE)
+    pub fn into_pos(self) -> Pos2 {
+        Pos2::new((self.x as f32) * CELL_SIZE, (self.y as f32) * CELL_SIZE)
     }
 }

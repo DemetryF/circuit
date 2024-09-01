@@ -21,7 +21,7 @@ impl Render for Resistor {
 }
 
 pub fn render_resistor(endpoints: [ElementPos; 2], painter: Painter<'_>, color: Color32) {
-    let endpoints = endpoints.map(|element| element.into_vec().to_pos2());
+    let endpoints = endpoints.map(ElementPos::into_pos);
 
     let stroke = Stroke::new(2.0, color);
 

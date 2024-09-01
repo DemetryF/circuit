@@ -51,13 +51,13 @@ impl<'data> eframe::App for App<'data> {
 
         central_panel.show(ctx, |ui| {
             let top_left = self.transform.inverse().mul_pos(Pos2::ZERO);
-            let top_left = ElementPos::from_vec(top_left.to_vec2());
+            let top_left = ElementPos::from_pos(top_left);
 
             let right_bottom = self
                 .transform
                 .inverse()
                 .mul_pos(ui.available_size().to_pos2());
-            let right_bottom = ElementPos::from_vec(right_bottom.to_vec2());
+            let right_bottom = ElementPos::from_pos(right_bottom);
 
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
@@ -67,7 +67,7 @@ impl<'data> eframe::App for App<'data> {
             for x in (top_left.x - 1)..=right_bottom.x {
                 for y in (top_left.y - 1)..=right_bottom.y {
                     let pos = ElementPos { x, y };
-                    let pos = pos.into_vec().to_pos2();
+                    let pos = pos.into_pos();
 
                     painter.render(Shape::circle_filled(
                         pos,
@@ -79,7 +79,7 @@ impl<'data> eframe::App for App<'data> {
 
             if let Some(mouse_pos) = self.mouse_ivec(ctx) {
                 painter.render(Shape::circle_filled(
-                    mouse_pos.into_vec().to_pos2(),
+                    mouse_pos.into_pos(),
                     CELL_SIZE / 7.0,
                     Color32::from_gray(60),
                 ));
@@ -118,8 +118,7 @@ impl<'data> eframe::App for App<'data> {
                     {
                         highlighted = true;
 
-                        let endpoints =
-                            endpoints.map(|point| self.transform * point.into_vec().to_pos2());
+                        let endpoints = endpoints.map(|point| self.transform * point.into_pos());
 
                         let endpoint = endpoints
                             .into_iter()
@@ -155,7 +154,7 @@ impl<'data> eframe::App for App<'data> {
                 let pos = response.interact_pointer_pos().unwrap();
                 let pos = self.transform.inverse().mul_pos(pos);
 
-                let pos = ElementPos::from_vec(pos.to_vec2());
+                let pos = ElementPos::from_pos(pos);
 
                 if let Some(adding) = self.adding.get_mut() {
                     if let Some(first) = adding.first {
@@ -236,10 +235,10 @@ impl<'data> App<'data> {
                 }
                 MovingObject::Element { id, old_endpoints } => {
                     let new_endpoints = old_endpoints
-                        .map(|point| self.transform * point.into_vec().to_pos2())
+                        .map(|point| self.transform * point.into_pos())
                         .map(|point| point + delta)
                         .map(|point| self.transform.inverse() * point)
-                        .map(|point| ElementPos::from_vec(point.to_vec2()));
+                        .map(|point| ElementPos::from_pos(point));
 
                     if old_endpoints != new_endpoints {
                         self.circuit.change(id, new_endpoints);
@@ -250,10 +249,10 @@ impl<'data> App<'data> {
                     endpoint_idx,
                     old_value,
                 } => {
-                    let new_point = self.transform.inverse()
-                        * (self.transform * old_value.into_vec().to_pos2() + delta);
+                    let new_point =
+                        self.transform.inverse() * (self.transform * old_value.into_pos() + delta);
 
-                    let new_point = ElementPos::from_vec(new_point.to_vec2());
+                    let new_point = ElementPos::from_pos(new_point);
 
                     let mut endpoints = self.circuit.endpoints(id);
                     endpoints[endpoint_idx] = new_point;
@@ -382,7 +381,7 @@ impl<'data> App<'data> {
     fn mouse_ivec(&self, ctx: &egui::Context) -> Option<ElementPos> {
         ctx.input(|state| state.pointer.hover_pos())
             .map(|pos| self.transform.inverse() * pos)
-            .map(|pos| ElementPos::from_vec(pos.to_vec2()))
+            .map(|pos| ElementPos::from_pos(pos))
     }
 }
 
