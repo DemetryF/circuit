@@ -1,0 +1,11 @@
+[package]
+name = "circuit"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default_conductors = []
+
+[dependencies]
+bimap = "0.6.3"
+nalgebra = "0.33.0"
