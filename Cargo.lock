@@ -171,6 +171,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "circuit",
+ "eframe",
+ "egui",
+ "egui_extras",
+]
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1214,16 +1224,6 @@ checksum = "0f214dc438f977e6d4e3500aaa277f5ad94ca83fbbd9b1a15713ce2344ccc5a1"
 dependencies = [
  "event-listener 5.3.1",
  "pin-project-lite",
-]
-
-[[package]]
-name = "example"
-version = "0.1.0"
-dependencies = [
- "circuit",
- "eframe",
- "egui",
- "egui_extras",
 ]
 
 [[package]]
