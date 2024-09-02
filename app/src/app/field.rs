@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::HashSet;
 
 use egui::emath::TSTransform;
-use egui::{CentralPanel, Frame, Margin, Sense};
+use egui::{CentralPanel, Frame, Key, Margin, Sense};
 use egui::{Color32, Pos2, Shape, Vec2};
 
 use circuit::circuit::ElementId;
@@ -36,6 +36,7 @@ impl Field {
 
             self.update_adding(&mut ctx, &response);
             self.update_moving(&mut ctx);
+            self.update_selected(&mut ctx);
             self.update_zoom(&ctx);
 
             self.draw_grid(&ctx, painter, size);
@@ -100,11 +101,11 @@ impl Field {
                     highlight = true;
 
                     if self.hovered.is_none() {
-                        self.update_hovered(endpoints, grid_mouse_pos, id);
+                        self.hover(endpoints, grid_mouse_pos, id);
                     }
 
                     if response.clicked() {
-                        self.update_selected(&ctx, id);
+                        self.select(&ctx, id);
                     }
                 }
             }
@@ -114,6 +115,40 @@ impl Field {
             } else {
                 element.render(endpoints, painter);
             }
+        }
+    }
+
+    fn hover(&mut self, endpoints: [ElementPos; 2], mouse_pos: Pos2, id: ElementId) {
+        let endpoints = endpoints.map(|point| self.transform * point.into_pos());
+
+        let endpoint_idx = endpoints
+            .into_iter()
+            .enumerate()
+            .find(|&(_, pos)| (mouse_pos - pos).length() < 5.0)
+            .map(|(idx, _)| idx);
+
+        if let Some(endpoint_idx) = endpoint_idx {
+            self.hovered = Some(Hovered::Endpoint {
+                element: id,
+                endpoint_idx,
+            });
+        } else {
+            self.hovered = Some(Hovered::Element(id))
+        }
+    }
+
+    fn select(&mut self, ctx: &AppContext, id: ElementId) {
+        let pressed_shift = ctx.egui_ctx.input(|state| state.modifiers.shift);
+
+        if pressed_shift {
+            if self.selected.contains(&id) {
+                self.selected.remove(&id);
+            } else {
+                self.selected.insert(id);
+            }
+        } else {
+            self.selected.clear();
+            self.selected.insert(id);
         }
     }
 
@@ -230,37 +265,25 @@ impl Field {
         }
     }
 
-    fn update_hovered(&mut self, endpoints: [ElementPos; 2], mouse_pos: Pos2, id: ElementId) {
-        let endpoints = endpoints.map(|point| self.transform * point.into_pos());
+    fn update_selected(&mut self, ctx: &mut AppContext) {
+        let pressed_delete = ctx
+            .egui_ctx
+            .input(|state| state.keys_down.contains(&Key::Delete));
 
-        let endpoint_idx = endpoints
-            .into_iter()
-            .enumerate()
-            .find(|&(_, pos)| (mouse_pos - pos).length() < 5.0)
-            .map(|(idx, _)| idx);
-
-        if let Some(endpoint_idx) = endpoint_idx {
-            self.hovered = Some(Hovered::Endpoint {
-                element: id,
-                endpoint_idx,
-            });
-        } else {
-            self.hovered = Some(Hovered::Element(id))
-        }
-    }
-
-    fn update_selected(&mut self, ctx: &AppContext, id: ElementId) {
-        let pressed_shift = ctx.egui_ctx.input(|state| state.modifiers.shift);
-
-        if pressed_shift {
-            if self.selected.contains(&id) {
-                self.selected.remove(&id);
-            } else {
-                self.selected.insert(id);
+        if pressed_delete {
+            for &idx in self.selected.iter() {
+                ctx.circuit.remove(idx)
             }
-        } else {
+
             self.selected.clear();
-            self.selected.insert(id);
+        }
+
+        let pressed_esc = ctx
+            .egui_ctx
+            .input(|state| state.keys_down.contains(&Key::Escape));
+
+        if pressed_esc {
+            self.selected.clear();
         }
     }
 
