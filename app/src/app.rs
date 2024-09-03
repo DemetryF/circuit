@@ -1,25 +1,23 @@
 mod elements_panel;
 mod field;
-mod state;
 
 use std::cell::Cell;
 
-use elements_panel::ElementsPanel;
-use state::AppState;
+use egui::Pos2;
 
 use circuit::Circuit;
 
+use elements_panel::{ElementType, ElementsPanel};
+use field::Field;
+
 use crate::element::{Element, ElementPos};
-use field::{Adding, Field};
 
 #[derive(Default)]
 pub struct App<'data> {
-    circuit: Circuit<'data, Element<'data>, ElementPos>,
-
     field: Field,
     elements_panel: ElementsPanel,
 
-    adding: Cell<Option<Adding>>,
+    state: AppState<'data>,
 }
 
 impl<'data> eframe::App for App<'data> {
@@ -28,15 +26,38 @@ impl<'data> eframe::App for App<'data> {
 
         let delta_time = ctx.input(|state| state.stable_dt);
 
-        self.circuit.update(delta_time);
+        self.state.circuit.update(delta_time);
 
-        let mut state = AppState {
-            ctx,
-            circuit: &mut self.circuit,
-            adding: &self.adding,
-        };
+        let ctx = Context(ctx);
 
-        self.field.show(&mut state);
-        self.elements_panel.show(&mut state);
+        self.field.show(&mut self.state, ctx);
+        self.elements_panel.show(&mut self.state, ctx);
+    }
+}
+
+#[derive(Default)]
+pub struct AppState<'data> {
+    pub circuit: Circuit<'data, Element<'data>, ElementPos>,
+    pub adding: Cell<Option<Adding>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct Adding {
+    pub ty: ElementType,
+    pub first: Option<ElementPos>,
+}
+
+impl Adding {
+    pub fn new(ty: ElementType) -> Self {
+        Self { ty, first: None }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Context<'frame>(pub &'frame egui::Context);
+
+impl<'frame> Context<'frame> {
+    pub fn mouse_pos(self) -> Option<Pos2> {
+        self.0.input(|state| state.pointer.hover_pos())
     }
 }
