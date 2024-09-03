@@ -5,7 +5,7 @@ use egui::{CentralPanel, Frame, Key, Margin, Sense};
 use egui::{Color32, Pos2, Shape, Vec2};
 
 use circuit::circuit::ElementId;
-use circuit::default_conductors::*;
+use circuit::{default_conductors::*, Circuit};
 
 use super::elements_panel::ElementType;
 use super::{Adding, AppState, Context};
@@ -245,28 +245,47 @@ impl Field {
                 }
                 MovingObject::Element { id, old_endpoints } => {
                     let new_endpoints = old_endpoints
-                        .map(|point| self.transform * point.into_pos())
-                        .map(|point| point + delta)
-                        .map(|point| self.transform.inverse() * point)
+                        .map(ElementPos::into_pos)
+                        .map(|point| point + delta / self.transform.scaling)
                         .map(ElementPos::from_pos);
 
-                    state.circuit.change(id, new_endpoints);
+                    let same_endpoints_exists = contains_endpoints(&state.circuit, new_endpoints);
+
+                    if !same_endpoints_exists {
+                        state.circuit.change(id, new_endpoints)
+                    }
                 }
                 MovingObject::ElementEndpoint {
                     element: id,
                     endpoint_idx,
                     old_value,
                 } => {
-                    let new_point =
-                        self.transform.inverse() * (self.transform * old_value.into_pos() + delta);
-
+                    let new_point = self.transform * old_value.into_pos() + delta;
+                    let new_point = self.transform.inverse() * new_point;
                     let new_point = ElementPos::from_pos(new_point);
 
                     let mut endpoints = state.circuit.endpoints(id);
                     endpoints[endpoint_idx] = new_point;
 
-                    state.circuit.change(id, endpoints)
+                    let same_endpoints_exists = contains_endpoints(&state.circuit, endpoints);
+
+                    if !same_endpoints_exists {
+                        state.circuit.change(id, endpoints)
+                    }
                 }
+            }
+
+            fn contains_endpoints<'data>(
+                circuit: &Circuit<'data, Element<'data>, ElementPos>,
+                endpoints: [ElementPos; 2],
+            ) -> bool {
+                circuit
+                    .iter()
+                    .map(|(id, _)| circuit.endpoints(id))
+                    .any(|other_endpoints| {
+                        other_endpoints == endpoints
+                            || other_endpoints == [endpoints[1], endpoints[0]]
+                    })
             }
         }
     }
