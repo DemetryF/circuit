@@ -166,13 +166,6 @@ impl<'data> Render for Element<'data> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum ElementType {
-    CurrentSource,
-    Wire,
-    Resistor,
-}
-
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Default)]
 pub struct ElementPos {
     pub x: isize,

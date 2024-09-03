@@ -7,9 +7,10 @@ use egui::{Color32, Pos2, Shape, Vec2};
 use circuit::circuit::ElementId;
 use circuit::default_conductors::*;
 
+use super::elements_panel::ElementType;
 use super::state::AppState;
 use crate::element::{render_current_source, render_resistor, render_wire};
-use crate::element::{Element, ElementPos, ElementTrait, ElementType, Render, CELL_SIZE};
+use crate::element::{Element, ElementPos, ElementTrait, Render, CELL_SIZE};
 use crate::utils::Painter;
 
 #[derive(Default)]
@@ -23,7 +24,7 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn show<'app, 'data>(&mut self, mut state: AppState<'app, 'data>) {
+    pub fn show<'app, 'data>(&mut self, mut state: &mut AppState<'app, 'data>) {
         self.panel().show(&state.ctx, move |ui| {
             let size = ui.available_size();
 
