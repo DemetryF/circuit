@@ -1,9 +1,11 @@
-mod context;
 mod field;
+mod state;
 
-use context::AppContext;
+use std::cell::Cell;
+
 use egui::Vec2;
 use egui::{Button, Id};
+use state::AppState;
 
 use circuit::Circuit;
 
@@ -16,6 +18,7 @@ pub struct App<'data> {
     circuit: Circuit<'data, Element<'data>, ElementPos>,
 
     field: Field,
+    adding: Cell<Option<Adding>>,
 }
 
 impl<'data> eframe::App for App<'data> {
@@ -26,9 +29,10 @@ impl<'data> eframe::App for App<'data> {
 
         self.circuit.update(delta_time);
 
-        self.field.show(AppContext {
-            egui_ctx: ctx,
+        self.field.show(AppState {
+            ctx,
             circuit: &mut self.circuit,
+            adding: &self.adding,
         });
 
         self.elements_panel(ctx);
@@ -76,7 +80,7 @@ impl<'data> App<'data> {
             ),
         ];
 
-        let adding = &self.field.adding;
+        let adding = &self.adding;
 
         let widgets = vec.into_iter().map(|(button, element)| {
             let react = Box::new(move |response: egui::Response| {
