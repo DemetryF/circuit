@@ -8,7 +8,7 @@ use circuit::circuit::ElementId;
 use circuit::default_conductors::*;
 
 use super::elements_panel::ElementType;
-use super::state::AppState;
+use super::{Adding, AppState, Context};
 use crate::element::{render_current_source, render_resistor, render_wire};
 use crate::element::{Element, ElementPos, ElementTrait, Render, CELL_SIZE};
 use crate::utils::Painter;
@@ -24,23 +24,24 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn show<'app, 'data>(&mut self, mut state: &mut AppState<'app, 'data>) {
-        self.panel().show(&state.ctx, move |ui| {
-            let size = ui.available_size();
-
+    pub fn show(&mut self, state: &mut AppState, ctx: Context) {
+        self.panel().show(ctx.0, move |ui| {
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
 
             let painter = Painter::new(&painter, self.transform);
 
-            self.update_adding(&mut state, &response);
-            self.update_moving(&mut state);
-            self.update_selected(&mut state);
-            self.update_zoom(&state);
+            if response.clicked() {
+                self.update_adding(state, ctx);
+            }
 
-            self.draw_grid(&state, painter, size);
-            self.draw_elements(&state, painter, &response);
-            self.draw_adding(&state, painter);
+            self.update_moving(state, ctx);
+            self.update_selected(state, ctx);
+            self.update_zoom(ctx);
+
+            self.draw_grid(ctx, painter, ui.min_size());
+            self.draw_elements(state, ctx, painter, &response);
+            self.draw_adding(state, ctx, painter);
         });
     }
 
@@ -53,7 +54,7 @@ impl Field {
         })
     }
 
-    fn draw_grid(&self, state: &AppState, painter: Painter, size: Vec2) {
+    fn draw_grid(&self, ctx: Context, painter: Painter, size: Vec2) {
         let top_left = self.transform.inverse() * Pos2::ZERO;
         let top_left = ElementPos::from_pos(top_left);
 
@@ -72,7 +73,7 @@ impl Field {
             }
         }
 
-        if let Some(mouse_pos) = state.mouse_pos() {
+        if let Some(mouse_pos) = ctx.mouse_pos() {
             let mouse_pos = ElementPos::from_pos(self.transform.inverse() * mouse_pos);
 
             painter.render(Shape::circle_filled(
@@ -83,7 +84,13 @@ impl Field {
         }
     }
 
-    fn draw_elements(&mut self, state: &AppState, painter: Painter<'_>, response: &egui::Response) {
+    fn draw_elements(
+        &mut self,
+        state: &AppState,
+        ctx: Context,
+        painter: Painter<'_>,
+        response: &egui::Response,
+    ) {
         self.hovered = None;
 
         for (id, element) in state.circuit.iter() {
@@ -91,7 +98,7 @@ impl Field {
 
             let mut highlight = self.selected.contains(&id);
 
-            if let Some(mouse_pos) = state.mouse_pos() {
+            if let Some(mouse_pos) = ctx.mouse_pos() {
                 let grid_mouse_pos = self.transform.inverse() * mouse_pos;
 
                 let is_hovered = element.includes(endpoints, grid_mouse_pos);
@@ -104,7 +111,7 @@ impl Field {
                     }
 
                     if response.clicked() {
-                        self.select(&state, id);
+                        self.select(ctx, id);
                     }
                 }
             }
@@ -136,8 +143,8 @@ impl Field {
         }
     }
 
-    fn select(&mut self, state: &AppState, id: ElementId) {
-        let pressed_shift = state.ctx.input(|state| state.modifiers.shift);
+    fn select(&mut self, ctx: Context, id: ElementId) {
+        let pressed_shift = ctx.0.input(|state| state.modifiers.shift);
 
         if pressed_shift {
             if self.selected.contains(&id) {
@@ -151,10 +158,10 @@ impl Field {
         }
     }
 
-    fn draw_adding(&mut self, state: &AppState, painter: Painter) {
-        if let Some(mouse_pos) = state.mouse_pos() {
+    fn draw_adding(&mut self, state: &AppState, ctx: Context, painter: Painter) {
+        if let Some(mouse_pos) = ctx.mouse_pos() {
             if let Some(Adding {
-                element,
+                ty: element,
                 first: Some(first),
             }) = state.adding.get()
             {
@@ -176,9 +183,9 @@ impl Field {
         }
     }
 
-    fn update_zoom(&mut self, state: &AppState) {
-        if let Some(real_mouse_pos) = state.ctx.input(|state| state.pointer.hover_pos()) {
-            let delta_scale = state.ctx.input(|state| state.zoom_delta());
+    fn update_zoom(&mut self, ctx: Context) {
+        if let Some(real_mouse_pos) = ctx.0.input(|state| state.pointer.hover_pos()) {
+            let delta_scale = ctx.0.input(|state| state.zoom_delta());
 
             if delta_scale != 1.0 {
                 let new_real_mouse_pos =
@@ -192,8 +199,8 @@ impl Field {
         }
     }
 
-    fn update_moving(&mut self, state: &mut AppState) {
-        let (pressed, released, mouse_pos) = state.ctx.input(|state| {
+    fn update_moving(&mut self, state: &mut AppState, ctx: Context) {
+        let (pressed, released, mouse_pos) = ctx.0.input(|state| {
             (
                 state.pointer.primary_pressed(),
                 state.pointer.primary_released(),
@@ -241,7 +248,7 @@ impl Field {
                         .map(|point| self.transform * point.into_pos())
                         .map(|point| point + delta)
                         .map(|point| self.transform.inverse() * point)
-                        .map(|point| ElementPos::from_pos(point));
+                        .map(ElementPos::from_pos);
 
                     state.circuit.change(id, new_endpoints);
                 }
@@ -264,10 +271,8 @@ impl Field {
         }
     }
 
-    fn update_selected(&mut self, state: &mut AppState) {
-        let pressed_delete = state
-            .ctx
-            .input(|state| state.keys_down.contains(&Key::Delete));
+    fn update_selected(&mut self, state: &mut AppState, ctx: Context) {
+        let pressed_delete = ctx.0.input(|state| state.keys_down.contains(&Key::Delete));
 
         if pressed_delete {
             for &idx in self.selected.iter() {
@@ -277,43 +282,39 @@ impl Field {
             self.selected.clear();
         }
 
-        let pressed_esc = state
-            .ctx
-            .input(|state| state.keys_down.contains(&Key::Escape));
+        let pressed_esc = ctx.0.input(|state| state.keys_down.contains(&Key::Escape));
 
         if pressed_esc {
             self.selected.clear();
         }
     }
 
-    fn update_adding(&mut self, state: &mut AppState, response: &egui::Response) {
-        if response.clicked() {
-            let pos = response.interact_pointer_pos().unwrap();
-            let pos = self.transform.inverse() * pos;
+    fn update_adding(&mut self, state: &mut AppState, ctx: Context) {
+        let pos = ctx.mouse_pos().unwrap();
+        let pos = self.transform.inverse() * pos;
 
-            let pos = ElementPos::from_pos(pos);
+        let pos = ElementPos::from_pos(pos);
 
-            if let Some(mut adding) = state.adding.get() {
-                if let Some(first) = adding.first {
-                    let second = pos;
+        if let Some(mut adding) = state.adding.get() {
+            if let Some(first) = adding.first {
+                let second = pos;
 
-                    let endpoints = [first, second];
-                    let conductor = self.create_element(adding);
+                let endpoints = [first, second];
+                let conductor = self.create_element(adding);
 
-                    state.circuit.add(endpoints, Element::new(conductor));
+                state.circuit.add(endpoints, Element::new(conductor));
 
-                    state.adding.set(None);
-                } else {
-                    adding.first = Some(pos);
+                state.adding.set(None);
+            } else {
+                adding.first = Some(pos);
 
-                    state.adding.set(Some(adding));
-                }
+                state.adding.set(Some(adding));
             }
         }
     }
 
     fn create_element(&self, adding: Adding) -> Box<dyn ElementTrait> {
-        match adding.element {
+        match adding.ty {
             ElementType::CurrentSource => {
                 let current_source = Box::new(CurrentSource {
                     resistance: 0.0,
@@ -334,12 +335,6 @@ impl Field {
             }
         }
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct Adding {
-    pub element: ElementType,
-    pub first: Option<ElementPos>,
 }
 
 #[derive(Clone, Copy)]
