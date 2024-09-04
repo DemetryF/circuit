@@ -1,10 +1,11 @@
 use egui::{Color32, Stroke};
+use smallvec::{smallvec, SmallVec};
 
 use circuit::default_conductors::CurrentSource;
 
 use crate::utils::Painter;
 
-use super::{ElementPos, Render, HIGHLIGHTED_COLOR};
+use super::{ElementPos, Properties, Render, HIGHLIGHTED_COLOR};
 
 const CURRENT_SOURCE_DISTANCE: f32 = 5.0;
 const CURRENT_SOURCE_SIZE: f32 = 10.0;
@@ -37,4 +38,14 @@ pub fn render_current_source(endpoints: [ElementPos; 2], painter: Painter<'_>, c
 
     painter.line([endpoints[0] + d - f1, endpoints[0] + d + f1], stroke);
     painter.line([endpoints[1] - d - f2, endpoints[1] - d + f2], stroke);
+}
+
+impl Properties for CurrentSource {
+    fn properties(&self) -> &'static [&'static str] {
+        &["emf", "resistance"]
+    }
+
+    fn properties_mut(&mut self) -> SmallVec<[&mut f32; 2]> {
+        smallvec![&mut self.emf, &mut self.resistance]
+    }
 }

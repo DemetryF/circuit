@@ -2,10 +2,11 @@ use egui::epaint::PathShape;
 use egui::{Color32, Stroke};
 
 use circuit::default_conductors::Resistor;
+use smallvec::{smallvec, SmallVec};
 
 use crate::utils::Painter;
 
-use super::{ElementPos, Render, HIGHLIGHTED_COLOR};
+use super::{ElementPos, Properties, Render, HIGHLIGHTED_COLOR};
 
 const RESISTOR_WIDTH: f32 = 20.0;
 const RESISTOR_HEIGHT: f32 = 5.0;
@@ -46,4 +47,14 @@ pub fn render_resistor(endpoints: [ElementPos; 2], painter: Painter<'_>, color: 
         fill: color,
         stroke: stroke.into(),
     });
+}
+
+impl Properties for Resistor {
+    fn properties(&self) -> &'static [&'static str] {
+        &["resistance"]
+    }
+
+    fn properties_mut(&mut self) -> SmallVec<[&mut f32; 2]> {
+        smallvec![&mut self.resistance]
+    }
 }

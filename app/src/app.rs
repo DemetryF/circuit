@@ -1,11 +1,13 @@
+mod control_panel;
 mod elements_panel;
 mod field;
 
 use std::cell::Cell;
 
+use control_panel::ControlPanel;
 use egui::Pos2;
 
-use circuit::Circuit;
+use circuit::{circuit::ElementId, Circuit};
 
 use elements_panel::{ElementType, ElementsPanel};
 use field::Field;
@@ -16,6 +18,7 @@ use crate::element::{Element, ElementPos};
 pub struct App<'data> {
     field: Field,
     elements_panel: ElementsPanel,
+    control_panel: ControlPanel,
 
     state: AppState<'data>,
 }
@@ -32,6 +35,7 @@ impl<'data> eframe::App for App<'data> {
 
         self.field.show(&mut self.state, ctx);
         self.elements_panel.show(&mut self.state, ctx);
+        self.control_panel.show(&mut self.state, ctx);
     }
 }
 
@@ -39,6 +43,7 @@ impl<'data> eframe::App for App<'data> {
 pub struct AppState<'data> {
     pub circuit: Circuit<'data, Element<'data>, ElementPos>,
     pub adding: Cell<Option<Adding>>,
+    pub settings: Option<ElementId>,
 }
 
 #[derive(Clone, Copy)]

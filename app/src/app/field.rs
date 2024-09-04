@@ -86,7 +86,7 @@ impl Field {
 
     fn draw_elements(
         &mut self,
-        state: &AppState,
+        state: &mut AppState,
         ctx: Context,
         painter: Painter<'_>,
         response: &egui::Response,
@@ -112,6 +112,10 @@ impl Field {
 
                     if response.clicked() {
                         self.select(ctx, id);
+                    }
+
+                    if response.double_clicked() {
+                        state.settings = Some(id);
                     }
                 }
             }
@@ -305,6 +309,9 @@ impl Field {
 
         if pressed_esc {
             self.selected.clear();
+
+            state.adding.set(None);
+            state.settings = None;
         }
     }
 
