@@ -139,7 +139,9 @@ where
             .map(|idx| *self.nodes.get_by_left(&idx).unwrap())
     }
 
-    // huita
+    pub fn get_mut(&mut self, id: ElementId) -> &mut C {
+        &mut self.elements.get_mut(&id).unwrap().conductor
+    }
 
     fn add_node(&mut self, weight: N) -> NodeIndex {
         let new_idx = self.graph.next_node();
