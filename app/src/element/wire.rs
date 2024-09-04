@@ -1,10 +1,10 @@
 use egui::{epaint::PathStroke, Color32};
 
 use circuit::default_conductors::Wire;
+use smallvec::{smallvec, SmallVec};
 
+use super::{ElementPos, Properties, Render, HIGHLIGHTED_COLOR};
 use crate::utils::Painter;
-
-use super::{ElementPos, Render, HIGHLIGHTED_COLOR};
 
 impl Render for Wire {
     fn render(&self, endpoints: [ElementPos; 2], painter: Painter) {
@@ -20,4 +20,14 @@ pub fn render_wire(endpoints: [ElementPos; 2], painter: Painter<'_>, color: Colo
     let endpoints = endpoints.map(ElementPos::into_pos);
 
     painter.line(endpoints, PathStroke::new(2.0, color));
+}
+
+impl Properties for Wire {
+    fn properties(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    fn properties_mut(&mut self) -> SmallVec<[&mut f32; 2]> {
+        smallvec![]
+    }
 }

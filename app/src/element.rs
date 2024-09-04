@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use egui::{Color32, Pos2, Rect, Rounding, Vec2};
 
 use circuit::Conductor;
+use smallvec::SmallVec;
 
 use crate::utils::Painter;
 
@@ -113,8 +114,8 @@ impl<'data> Element<'data> {
     }
 }
 
-pub trait ElementTrait: Conductor + Render {}
-impl<T: Conductor + Render> ElementTrait for T {}
+pub trait ElementTrait: Conductor + Render + Properties {}
+impl<T: Conductor + Render + Properties> ElementTrait for T {}
 
 impl<'data> Borrow<dyn Conductor + 'data> for Element<'data> {
     fn borrow(&self) -> &(dyn Conductor + 'data) {
@@ -186,5 +187,25 @@ impl ElementPos {
 
     pub fn into_pos(self) -> Pos2 {
         Pos2::new((self.x as f32) * CELL_SIZE, (self.y as f32) * CELL_SIZE)
+    }
+}
+
+// pub trait Properties {
+//     fn properties(&self) -> &'static [&'static str];
+//     fn properties_mut(&mut self) -> &mut [&mut f32];
+// }
+
+pub trait Properties {
+    fn properties(&self) -> &'static [&'static str];
+    fn properties_mut(&mut self) -> SmallVec<[&mut f32; 2]>;
+}
+
+impl<'data> Properties for Element<'data> {
+    fn properties(&self) -> &'static [&'static str] {
+        self.conductor.properties()
+    }
+
+    fn properties_mut(&mut self) -> SmallVec<[&mut f32; 2]> {
+        self.conductor.properties_mut()
     }
 }
