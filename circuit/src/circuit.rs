@@ -96,16 +96,6 @@ where
 
         let old_endpoints = self.elements[&id].endpoints;
 
-        for endpoint in old_endpoints {
-            if !self
-                .graph
-                .edges()
-                .any(|endpoints| endpoints.contains(&endpoint))
-            {
-                self.graph.remove_node(endpoint);
-            }
-        }
-
         self.elements.get_mut(&id).unwrap().endpoints = new_endpoints;
 
         self.ids.retain(|&other_id| other_id != id);
