@@ -31,7 +31,12 @@ impl SpanningForest {
 
                     graph
                         .neighbour_nodes(idx)
-                        .filter(|&idx| !visited[idx.0])
+                        .filter(|&other_idx| !visited[other_idx.0])
+                        .filter(|&other_idx| {
+                            graph
+                                .neighbour_nodes(other_idx)
+                                .all(|other_idx| other_idx == idx || !visited[other_idx.0])
+                        })
                         .for_each(|other_idx| {
                             forest.add_edge([idx, other_idx]);
 
