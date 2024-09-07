@@ -40,12 +40,6 @@ impl MatrixGraph {
         NodeIndex(new_size - 1)
     }
 
-    pub fn remove_node(&mut self, node: NodeIndex) {
-        self.matrix = mem::take(&mut self.matrix)
-            .remove_column(node.0)
-            .remove_row(node.0);
-    }
-
     pub fn has_edge(&self, endpoints: [NodeIndex; 2]) -> bool {
         let endpoints = endpoints.map(|idx| idx.0);
 

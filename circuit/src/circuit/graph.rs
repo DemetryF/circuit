@@ -22,11 +22,6 @@ impl CircuitGraph {
         self.graph.next_node()
     }
 
-    pub fn remove_node(&mut self, node: NodeIndex) {
-        self.spanning.remove_node(node);
-        self.graph.remove_node(node);
-    }
-
     pub fn add_edge(&mut self, endpoints: [NodeIndex; 2]) {
         self.graph.add_edge(endpoints);
         self.spanning.add_edge(endpoints);
@@ -49,10 +44,6 @@ impl CircuitGraph {
 
     pub fn loops(&self) -> (&DMatrix<f32>, &DMatrix<f32>) {
         (&self.loops, &self.loops_transposed)
-    }
-
-    pub fn edges(&mut self) -> impl Iterator<Item = [NodeIndex; 2]> + '_ {
-        self.edges.iter().copied()
     }
 
     fn update_loops(&mut self) {
