@@ -91,6 +91,10 @@ impl Field {
         painter: Painter<'_>,
         response: &egui::Response,
     ) {
+        let grid_mouse_pos = ctx
+            .mouse_pos()
+            .map(|point| self.transform.inverse() * point);
+
         self.hovered = None;
 
         for (id, element) in state.circuit.iter() {
@@ -98,15 +102,13 @@ impl Field {
 
             let mut highlight = self.selected.contains(&id);
 
-            if let Some(mouse_pos) = ctx.mouse_pos() {
-                let grid_mouse_pos = self.transform.inverse() * mouse_pos;
-
+            if let Some(grid_mouse_pos) = grid_mouse_pos {
                 let is_hovered = element.includes(endpoints, grid_mouse_pos);
 
                 if is_hovered && state.adding.get().is_none() {
                     highlight = true;
 
-                    if self.hovered.is_none() {
+                    if let Some(Hovered::Element(_)) | None = self.hovered {
                         self.hover(endpoints, grid_mouse_pos, id);
                     }
 
@@ -129,22 +131,18 @@ impl Field {
     }
 
     fn hover(&mut self, endpoints: [ElementPos; 2], mouse_pos: Pos2, id: ElementId) {
-        let endpoints = endpoints.map(|point| self.transform * point.into_pos());
-
         let endpoint_idx = endpoints
             .into_iter()
-            .enumerate()
-            .find(|&(_, pos)| (mouse_pos - pos).length() < 5.0)
-            .map(|(idx, _)| idx);
+            .position(|pos| (mouse_pos - pos.into_pos()).length() < 5.0);
 
-        if let Some(endpoint_idx) = endpoint_idx {
-            self.hovered = Some(Hovered::Endpoint {
+        self.hovered = if let Some(endpoint_idx) = endpoint_idx {
+            Some(Hovered::Endpoint {
                 element: id,
                 endpoint_idx,
-            });
+            })
         } else {
-            self.hovered = Some(Hovered::Element(id))
-        }
+            Some(Hovered::Element(id))
+        };
     }
 
     fn select(&mut self, ctx: Context, id: ElementId) {
