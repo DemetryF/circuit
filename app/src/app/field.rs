@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use egui::emath::TSTransform;
-use egui::{CentralPanel, Frame, Key, Margin, Sense};
+use egui::epaint::RectShape;
+use egui::{CentralPanel, Frame, Key, Margin, Rect, Rounding, Sense, Stroke};
 use egui::{Color32, Pos2, Shape, Vec2};
 
 use circuit::circuit::ElementId;
@@ -9,7 +10,7 @@ use circuit::{default_conductors::*, Circuit};
 
 use super::elements_panel::ElementType;
 use super::{Adding, AppState, Context};
-use crate::element::{render_current_source, render_resistor, render_wire};
+use crate::element::{render_current_source, render_resistor, render_wire, HIGHLIGHTED_COLOR};
 use crate::element::{Element, ElementPos, ElementTrait, Render, CELL_SIZE};
 use crate::utils::Painter;
 
@@ -21,6 +22,7 @@ pub struct Field {
 
     pub selected: HashSet<ElementId>,
     pub hovered: Option<Hovered>,
+    pub selection: Option<Pos2>,
 }
 
 impl Field {
@@ -38,8 +40,8 @@ impl Field {
             self.update_moving(state, ctx);
             self.update_selected(state, ctx);
             self.update_zoom(ctx);
-
             self.draw_grid(ctx, painter, ui.min_size());
+            self.update_selection(ctx, painter);
             self.draw_elements(state, ctx, painter, &response);
             self.draw_adding(state, ctx, painter);
         });
@@ -105,7 +107,18 @@ impl Field {
             if let Some(grid_mouse_pos) = grid_mouse_pos {
                 let is_hovered = element.includes(endpoints, grid_mouse_pos);
 
-                if is_hovered && state.adding.get().is_none() {
+                if let (Some(pos), Some(mouse_pos)) = (self.selection, ctx.mouse_pos()) {
+                    let rect = Rect::from_two_pos(pos, mouse_pos);
+
+                    if endpoints
+                        .into_iter()
+                        .all(|point| rect.contains(self.transform * point.into_pos()))
+                    {
+                        self.selected.insert(id);
+                    } else {
+                        self.selected.remove(&id);
+                    }
+                } else if is_hovered && state.adding.get().is_none() {
                     highlight = true;
 
                     if let Some(Hovered::Element(_)) | None = self.hovered {
@@ -357,6 +370,39 @@ impl Field {
 
                 resistor as Box<dyn ElementTrait>
             }
+        }
+    }
+
+    pub fn update_selection(&mut self, ctx: Context, painter: Painter) {
+        let (pressed, released, Some(mouse_pos)) = ctx.0.input(|state| {
+            (
+                state.pointer.secondary_pressed(),
+                state.pointer.secondary_released(),
+                state.pointer.hover_pos(),
+            )
+        }) else {
+            return;
+        };
+
+        if pressed {
+            self.selection = Some(mouse_pos);
+            self.selected.clear();
+        } else if released {
+            self.selection = None;
+        }
+
+        if let Some(pos) = self.selection {
+            let rect = self.transform.inverse() * Rect::from_two_pos(pos, mouse_pos);
+
+            let color = HIGHLIGHTED_COLOR;
+            let color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10);
+
+            painter.render(RectShape::new(
+                rect,
+                Rounding::ZERO,
+                color,
+                Stroke::new(2.0, HIGHLIGHTED_COLOR),
+            ));
         }
     }
 }
