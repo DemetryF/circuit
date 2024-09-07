@@ -55,10 +55,6 @@ impl SpanningForest {
         self.roots.push(new_node);
     }
 
-    pub fn remove_node(&mut self, node: NodeIndex) {
-        self.forest.remove_node(node);
-    }
-
     pub fn add_edge(&mut self, endpoints: [NodeIndex; 2]) -> bool {
         let roots_and_indexes = endpoints.map(|endpoint| {
             bfs_nodes_as_undirected(&self.forest, endpoint)
