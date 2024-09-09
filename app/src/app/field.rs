@@ -1,54 +1,63 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
-use egui::emath::TSTransform;
-use egui::epaint::RectShape;
-use egui::{CentralPanel, Frame, Key, Margin, Rect, Rounding, Sense, Stroke};
-use egui::{Color32, Pos2, Shape, Vec2};
+use egui::{CentralPanel, Id, Sense};
+use egui::{Color32, Margin, Pos2, Shape, Vec2};
 
-use circuit::circuit::ElementId;
-use circuit::{default_conductors::*, Circuit};
-
-use super::elements_panel::ElementType;
-use super::{Adding, AppState, Context};
-use crate::element::{render_current_source, render_resistor, render_wire, HIGHLIGHTED_COLOR};
-use crate::element::{Element, ElementPos, ElementTrait, Render, CELL_SIZE};
+use super::action::{Action, MovingObject};
+use super::{AppState, Context, Hovered};
+use crate::element::{ElementPos, Render};
+use crate::element::{CELL_SIZE, SENSABLE_DIST};
 use crate::utils::Painter;
 
 #[derive(Default)]
-pub struct Field {
-    pub transform: TSTransform,
-
-    pub moving: Option<Moving>,
-
-    pub selected: HashSet<ElementId>,
-    pub hovered: Option<Hovered>,
-    pub selection: Option<Pos2>,
-}
+pub struct Field;
 
 impl Field {
-    pub fn show(&mut self, state: &mut AppState, ctx: Context) {
+    pub fn show(&mut self, state: &mut AppState, ctx: Context, action: &mut Action) {
         self.panel().show(ctx.0, move |ui| {
-            let (response, painter) =
-                ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
+            let response = {
+                let (_, rect) = ui.allocate_space(ui.available_size());
 
-            let painter = Painter::new(&painter, self.transform);
+                ui.interact(rect, Id::new("field"), Sense::click_and_drag())
+            };
 
-            if response.clicked() {
-                self.update_adding(state, ctx);
+            let painter = ctx.field_painter();
+            let painter = Painter::new(&painter, state.transform);
+
+            self.draw_grid(ctx, painter, ui.min_size());
+            self.process_elements(state, ctx, painter);
+
+            update_selected(state, ctx, &response);
+
+            if response.drag_started_by(egui::PointerButton::Primary) {
+                start_moving(ctx, action, state);
             }
 
-            self.update_moving(state, ctx);
-            self.update_selected(state, ctx);
-            self.update_zoom(ctx);
-            self.draw_grid(ctx, painter, ui.min_size());
-            self.update_selection(ctx, painter);
-            self.draw_elements(state, ctx, painter, &response);
-            self.draw_adding(state, ctx, painter);
+            if response.drag_stopped_by(egui::PointerButton::Primary) {
+                if let Action::Moving { .. } = action {
+                    *action = Action::None;
+                }
+            }
+
+            if response.drag_started_by(egui::PointerButton::Secondary) {
+                let mouse_pos = ctx.mouse_pos().unwrap();
+
+                action.try_init(|| Action::Selection {
+                    mouse_pos,
+                    origin: mouse_pos,
+                });
+            }
+
+            if response.drag_stopped_by(egui::PointerButton::Secondary) {
+                if let Action::Selection { .. } = action {
+                    *action = Action::None;
+                }
+            }
         });
     }
 
     fn panel(&self) -> CentralPanel {
-        egui::CentralPanel::default().frame(Frame {
+        egui::CentralPanel::default().frame(egui::Frame {
             inner_margin: Margin::ZERO,
             outer_margin: Margin::ZERO,
             fill: Color32::from_gray(27),
@@ -56,16 +65,53 @@ impl Field {
         })
     }
 
+    fn process_elements(&self, state: &mut AppState, ctx: Context, painter: Painter) {
+        state.hovered = None;
+
+        for (id, element) in state.circuit.iter() {
+            let endpoints = state.circuit.endpoints(id);
+
+            let mut highlighted = state.selected.contains(&id);
+
+            if let Some(mouse_pos) = ctx.mouse_pos() {
+                let grid_mouse_pos = state.transform.inverse() * mouse_pos;
+
+                let hovered = element.includes(endpoints, grid_mouse_pos);
+
+                highlighted = highlighted || hovered;
+
+                if hovered {
+                    if let Some(endpoint) = endpoints.into_iter().position(|point| {
+                        point.to_pos().distance_sq(grid_mouse_pos) <= SENSABLE_DIST.powi(2) * 2.0
+                    }) {
+                        state.hovered = Some(Hovered {
+                            id,
+                            endpoint: Some(endpoint),
+                        })
+                    } else if state.hovered.is_none() {
+                        state.hovered = Some(Hovered { id, endpoint: None })
+                    }
+                }
+            }
+
+            if highlighted {
+                element.render_highlighted(endpoints, painter);
+            } else {
+                element.render(endpoints, painter);
+            }
+        }
+    }
+
     fn draw_grid(&self, ctx: Context, painter: Painter, size: Vec2) {
-        let top_left = self.transform.inverse() * Pos2::ZERO;
+        let top_left = painter.transform.inverse() * Pos2::ZERO;
         let top_left = ElementPos::from_pos(top_left);
 
-        let right_bottom = self.transform.inverse() * size.to_pos2();
+        let right_bottom = painter.transform.inverse() * size.to_pos2();
         let right_bottom = ElementPos::from_pos(right_bottom);
 
         for x in (top_left.x - 1)..=right_bottom.x {
             for y in (top_left.y - 1)..=right_bottom.y {
-                let pos = ElementPos { x, y }.into_pos();
+                let pos = ElementPos { x, y }.to_pos();
 
                 painter.render(Shape::circle_filled(
                     pos,
@@ -76,364 +122,84 @@ impl Field {
         }
 
         if let Some(mouse_pos) = ctx.mouse_pos() {
-            let mouse_pos = ElementPos::from_pos(self.transform.inverse() * mouse_pos);
+            let mouse_pos = ElementPos::from_pos(painter.transform.inverse() * mouse_pos);
 
             painter.render(Shape::circle_filled(
-                mouse_pos.into_pos(),
+                mouse_pos.to_pos(),
                 CELL_SIZE / 7.0,
                 Color32::from_gray(60),
             ));
         }
     }
+}
 
-    fn draw_elements(
-        &mut self,
-        state: &mut AppState,
-        ctx: Context,
-        painter: Painter<'_>,
-        response: &egui::Response,
-    ) {
-        let grid_mouse_pos = ctx
-            .mouse_pos()
-            .map(|point| self.transform.inverse() * point);
+fn start_moving(ctx: Context<'_>, action: &mut Action, state: &mut AppState<'_>) {
+    let mouse_pos = ctx.mouse_pos().unwrap();
 
-        self.hovered = None;
+    action.try_init(|| match state.hovered {
+        Some(Hovered {
+            id,
+            endpoint: Some(endpoint),
+        }) => {
+            let origin_pos = state.circuit.endpoints(id)[endpoint];
 
-        for (id, element) in state.circuit.iter() {
-            let endpoints = state.circuit.endpoints(id);
-
-            let mut highlight = self.selected.contains(&id);
-
-            if let Some(grid_mouse_pos) = grid_mouse_pos {
-                let is_hovered = element.includes(endpoints, grid_mouse_pos);
-
-                if let (Some(pos), Some(mouse_pos)) = (self.selection, ctx.mouse_pos()) {
-                    let rect = Rect::from_two_pos(pos, mouse_pos);
-
-                    if endpoints
-                        .into_iter()
-                        .all(|point| rect.contains(self.transform * point.into_pos()))
-                    {
-                        self.selected.insert(id);
-                    } else {
-                        self.selected.remove(&id);
-                    }
-                } else if is_hovered && state.adding.get().is_none() {
-                    highlight = true;
-
-                    if let Some(Hovered::Element(_)) | None = self.hovered {
-                        self.hover(endpoints, grid_mouse_pos, id);
-                    }
-
-                    if response.clicked() {
-                        self.select(ctx, id);
-                    }
-
-                    if response.double_clicked() {
-                        state.settings = Some(id);
-                    }
-                }
+            MovingObject::Endpoint {
+                origin_pos,
+                id,
+                endpoint,
             }
-
-            if highlight {
-                element.render_highlighted(endpoints, painter);
-            } else {
-                element.render(endpoints, painter);
-            }
+            .into_moving(mouse_pos)
         }
-    }
 
-    fn hover(&mut self, endpoints: [ElementPos; 2], mouse_pos: Pos2, id: ElementId) {
-        let endpoint_idx = endpoints
-            .into_iter()
-            .position(|pos| (mouse_pos - pos.into_pos()).length() < 5.0);
+        Some(Hovered { id, endpoint: None }) if state.selected.contains(&id) => {
+            MovingObject::Elements {
+                origin_endpoints: state
+                    .selected
+                    .iter()
+                    .map(|&id| (id, state.circuit.endpoints(id)))
+                    .collect(),
+            }
+            .into_moving(mouse_pos)
+        }
 
-        self.hovered = if let Some(endpoint_idx) = endpoint_idx {
-            Some(Hovered::Endpoint {
-                element: id,
-                endpoint_idx,
-            })
-        } else {
-            Some(Hovered::Element(id))
-        };
-    }
+        Some(Hovered { id, endpoint: None }) => {
+            let origin_endpoints = state.circuit.endpoints(id);
 
-    fn select(&mut self, ctx: Context, id: ElementId) {
+            MovingObject::Elements {
+                origin_endpoints: HashMap::from_iter([(id, origin_endpoints)]),
+            }
+            .into_moving(mouse_pos)
+        }
+
+        None => MovingObject::View {
+            origin_translation: state.transform.translation,
+        }
+        .into_moving(mouse_pos),
+    });
+}
+
+fn update_selected(state: &mut AppState<'_>, ctx: Context<'_>, response: &egui::Response) {
+    if let Some(Hovered { id, .. }) = state.hovered {
         let pressed_shift = ctx.0.input(|state| state.modifiers.shift);
 
-        if pressed_shift {
-            if self.selected.contains(&id) {
-                self.selected.remove(&id);
+        if response.clicked() && pressed_shift {
+            if state.selected.contains(&id) {
+                state.selected.remove(&id);
             } else {
-                self.selected.insert(id);
+                state.selected.insert(id);
             }
-        } else {
-            self.selected.clear();
-            self.selected.insert(id);
+        }
+
+        if response.clicked() {
+            state.selected.clear();
+
+            if !state.selected.contains(&id) {
+                state.selected.insert(id);
+            }
+        }
+
+        if response.double_clicked() {
+            state.settings = Some(id);
         }
     }
-
-    fn draw_adding(&mut self, state: &AppState, ctx: Context, painter: Painter) {
-        if let Some(mouse_pos) = ctx.mouse_pos() {
-            if let Some(Adding {
-                ty: element,
-                first: Some(first),
-            }) = state.adding.get()
-            {
-                let second = ElementPos::from_pos(self.transform.inverse() * mouse_pos);
-                let endpoints = [first, second];
-
-                match element {
-                    ElementType::CurrentSource => {
-                        render_current_source(endpoints, painter, Color32::DARK_GRAY);
-                    }
-                    ElementType::Wire => {
-                        render_wire(endpoints, painter, Color32::DARK_GRAY);
-                    }
-                    ElementType::Resistor => {
-                        render_resistor(endpoints, painter, Color32::DARK_GRAY);
-                    }
-                }
-            }
-        }
-    }
-
-    fn update_zoom(&mut self, ctx: Context) {
-        if let Some(real_mouse_pos) = ctx.0.input(|state| state.pointer.hover_pos()) {
-            let delta_scale = ctx.0.input(|state| state.zoom_delta());
-
-            if delta_scale != 1.0 {
-                let new_real_mouse_pos =
-                    (real_mouse_pos - self.transform.translation) / delta_scale;
-
-                let delta = new_real_mouse_pos - real_mouse_pos + self.transform.translation;
-
-                self.transform.translation += delta;
-                self.transform.scaling *= delta_scale;
-            }
-        }
-    }
-
-    fn update_moving(&mut self, state: &mut AppState, ctx: Context) {
-        let (pressed, released, mouse_pos) = ctx.0.input(|state| {
-            (
-                state.pointer.primary_pressed(),
-                state.pointer.primary_released(),
-                state.pointer.hover_pos(),
-            )
-        });
-
-        if pressed {
-            let origin = mouse_pos.unwrap().to_vec2();
-
-            let object = match self.hovered {
-                Some(Hovered::Endpoint {
-                    element,
-                    endpoint_idx,
-                }) => MovingObject::ElementEndpoint {
-                    element,
-                    endpoint_idx,
-                    old_value: state.circuit.endpoints(element)[endpoint_idx],
-                },
-
-                Some(Hovered::Element(id)) => MovingObject::Element {
-                    id,
-                    old_endpoints: state.circuit.endpoints(id),
-                },
-
-                None => MovingObject::View {
-                    old_translation: self.transform.translation,
-                },
-            };
-
-            self.moving = Some(Moving { object, origin });
-        } else if released {
-            self.moving = None;
-        }
-
-        if let Some(moving) = self.moving {
-            let delta = mouse_pos.unwrap().to_vec2() - moving.origin;
-
-            match moving.object {
-                MovingObject::View { old_translation } => {
-                    self.transform.translation = old_translation + delta;
-                }
-                MovingObject::Element { id, old_endpoints } => {
-                    let new_endpoints = old_endpoints
-                        .map(ElementPos::into_pos)
-                        .map(|point| point + delta / self.transform.scaling)
-                        .map(ElementPos::from_pos);
-
-                    let same_endpoints_exists = contains_endpoints(&state.circuit, new_endpoints);
-
-                    if !same_endpoints_exists {
-                        state.circuit.change(id, new_endpoints)
-                    }
-                }
-                MovingObject::ElementEndpoint {
-                    element: id,
-                    endpoint_idx,
-                    old_value,
-                } => {
-                    let new_point = self.transform * old_value.into_pos() + delta;
-                    let new_point = self.transform.inverse() * new_point;
-                    let new_point = ElementPos::from_pos(new_point);
-
-                    let mut endpoints = state.circuit.endpoints(id);
-                    endpoints[endpoint_idx] = new_point;
-
-                    let same_endpoints_exists = contains_endpoints(&state.circuit, endpoints);
-
-                    if !same_endpoints_exists {
-                        state.circuit.change(id, endpoints)
-                    }
-                }
-            }
-
-            fn contains_endpoints<'data>(
-                circuit: &Circuit<'data, Element<'data>, ElementPos>,
-                endpoints: [ElementPos; 2],
-            ) -> bool {
-                circuit
-                    .iter()
-                    .map(|(id, _)| circuit.endpoints(id))
-                    .any(|other_endpoints| {
-                        other_endpoints == endpoints
-                            || other_endpoints == [endpoints[1], endpoints[0]]
-                    })
-            }
-        }
-    }
-
-    fn update_selected(&mut self, state: &mut AppState, ctx: Context) {
-        let pressed_delete = ctx.0.input(|state| state.keys_down.contains(&Key::Delete));
-
-        if pressed_delete {
-            for &idx in self.selected.iter() {
-                state.circuit.remove(idx)
-            }
-
-            self.selected.clear();
-        }
-
-        let pressed_esc = ctx.0.input(|state| state.keys_down.contains(&Key::Escape));
-
-        if pressed_esc {
-            self.selected.clear();
-
-            state.adding.set(None);
-            state.settings = None;
-        }
-    }
-
-    fn update_adding(&mut self, state: &mut AppState, ctx: Context) {
-        let pos = ctx.mouse_pos().unwrap();
-        let pos = self.transform.inverse() * pos;
-
-        let pos = ElementPos::from_pos(pos);
-
-        if let Some(mut adding) = state.adding.get() {
-            if let Some(first) = adding.first {
-                let second = pos;
-
-                let endpoints = [first, second];
-                let conductor = self.create_element(adding);
-
-                state.circuit.add(endpoints, Element::new(conductor));
-
-                state.adding.set(None);
-            } else {
-                adding.first = Some(pos);
-
-                state.adding.set(Some(adding));
-            }
-        }
-    }
-
-    fn create_element(&self, adding: Adding) -> Box<dyn ElementTrait> {
-        match adding.ty {
-            ElementType::CurrentSource => {
-                let current_source = Box::new(CurrentSource {
-                    resistance: 0.0,
-                    emf: 10.0,
-                });
-
-                current_source as Box<dyn ElementTrait>
-            }
-            ElementType::Wire => {
-                let wire = Box::new(Wire);
-
-                wire as Box<dyn ElementTrait>
-            }
-            ElementType::Resistor => {
-                let resistor = Box::new(Resistor { resistance: 5.0 });
-
-                resistor as Box<dyn ElementTrait>
-            }
-        }
-    }
-
-    pub fn update_selection(&mut self, ctx: Context, painter: Painter) {
-        let (pressed, released, Some(mouse_pos)) = ctx.0.input(|state| {
-            (
-                state.pointer.secondary_pressed(),
-                state.pointer.secondary_released(),
-                state.pointer.hover_pos(),
-            )
-        }) else {
-            return;
-        };
-
-        if pressed {
-            self.selection = Some(mouse_pos);
-            self.selected.clear();
-        } else if released {
-            self.selection = None;
-        }
-
-        if let Some(pos) = self.selection {
-            let rect = self.transform.inverse() * Rect::from_two_pos(pos, mouse_pos);
-
-            let color = HIGHLIGHTED_COLOR;
-            let color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10);
-
-            painter.render(RectShape::new(
-                rect,
-                Rounding::ZERO,
-                color,
-                Stroke::new(2.0, HIGHLIGHTED_COLOR),
-            ));
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Hovered {
-    Element(ElementId),
-    Endpoint {
-        element: ElementId,
-        endpoint_idx: usize,
-    },
-}
-
-#[derive(Clone, Copy)]
-pub struct Moving {
-    pub object: MovingObject,
-    pub origin: Vec2,
-}
-
-#[derive(Clone, Copy)]
-pub enum MovingObject {
-    View {
-        old_translation: Vec2,
-    },
-    Element {
-        id: ElementId,
-        old_endpoints: [ElementPos; 2],
-    },
-    ElementEndpoint {
-        element: ElementId,
-        endpoint_idx: usize,
-        old_value: ElementPos,
-    },
 }

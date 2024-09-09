@@ -4,6 +4,7 @@ mod wire;
 
 use std::borrow::{Borrow, BorrowMut};
 use std::marker::PhantomData;
+use std::ops;
 
 use egui::{Color32, Pos2, Rect, Rounding, Vec2};
 
@@ -12,9 +13,11 @@ use smallvec::SmallVec;
 
 use crate::utils::Painter;
 
-pub use current_source::render_current_source;
-pub use resistor::render_resistor;
-pub use wire::render_wire;
+pub mod render {
+    pub use super::current_source::render_current_source;
+    pub use super::resistor::render_resistor;
+    pub use super::wire::render_wire;
+}
 
 const CHARGE_VALUE: f32 = 1.0;
 const CHARGE_DISTANCE: f32 = 20.0;
@@ -30,7 +33,7 @@ pub struct Element<'data> {
     lt: PhantomData<&'data ()>,
 }
 
-const SENSABLE_DIST: f32 = 10.0;
+pub const SENSABLE_DIST: f32 = 10.0;
 
 impl<'data> Element<'data> {
     pub fn new(conductor: Box<dyn ElementTrait>) -> Self {
@@ -42,7 +45,7 @@ impl<'data> Element<'data> {
     }
 
     fn render_charges(&self, endpoints: [ElementPos; 2], painter: Painter<'_>) {
-        let endpoints = endpoints.map(ElementPos::into_pos);
+        let endpoints = endpoints.map(ElementPos::to_pos);
 
         let dist = endpoints[1] - endpoints[0];
         let length = dist.length();
@@ -64,7 +67,7 @@ impl<'data> Element<'data> {
     }
 
     pub fn includes(&self, endpoints: [ElementPos; 2], point: Pos2) -> bool {
-        let endpoints = endpoints.map(ElementPos::into_pos);
+        let endpoints = endpoints.map(ElementPos::to_pos);
 
         let min_y = f32::min(endpoints[0].y, endpoints[1].y);
         let max_y = f32::max(endpoints[0].y, endpoints[1].y);
@@ -185,15 +188,26 @@ impl ElementPos {
         }
     }
 
-    pub fn into_pos(self) -> Pos2 {
+    pub fn to_pos(self) -> Pos2 {
         Pos2::new((self.x as f32) * CELL_SIZE, (self.y as f32) * CELL_SIZE)
     }
 }
 
-// pub trait Properties {
-//     fn properties(&self) -> &'static [&'static str];
-//     fn properties_mut(&mut self) -> &mut [&mut f32];
-// }
+impl ops::Add<Vec2> for ElementPos {
+    type Output = Self;
+
+    fn add(self, rhs: Vec2) -> Self::Output {
+        Self::from_pos(self.to_pos() + rhs)
+    }
+}
+
+impl ops::Sub<Vec2> for ElementPos {
+    type Output = Self;
+
+    fn sub(self, rhs: Vec2) -> Self::Output {
+        Self::from_pos(self.to_pos() - rhs)
+    }
+}
 
 pub trait Properties {
     fn properties(&self) -> &'static [&'static str];
