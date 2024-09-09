@@ -5,6 +5,7 @@ mod field;
 
 use std::collections::HashSet;
 
+use egui::Key;
 use egui::{emath::TSTransform, InputState, LayerId, PointerButton, Pos2};
 
 use circuit::{circuit::ElementId, Circuit};
@@ -33,8 +34,7 @@ impl<'data> eframe::App for App<'data> {
 
         let ctx = Context(ctx);
 
-        self.state.circuit.update(ctx.delta_time());
-        self.state.update_zoom(ctx);
+        self.state.update(ctx);
 
         let painter = ctx.0.layer_painter(LayerId::background());
         let painter = Painter::new(&painter, self.state.transform);
@@ -60,6 +60,14 @@ pub struct AppState<'data> {
 }
 
 impl<'data> AppState<'data> {
+    pub fn update(&mut self, ctx: Context) {
+        self.circuit.update(ctx.delta_time());
+
+        self.update_zoom(ctx);
+        self.update_selected(ctx);
+        self.update_settings(ctx);
+    }
+
     fn update_zoom(&mut self, ctx: Context) {
         if let Some(real_mouse_pos) = ctx.0.input(|state| state.pointer.hover_pos()) {
             let delta_scale = ctx.0.input(|state| state.zoom_delta());
@@ -73,6 +81,26 @@ impl<'data> AppState<'data> {
                 self.transform.translation += delta;
                 self.transform.scaling *= delta_scale;
             }
+        }
+    }
+
+    fn update_selected(&mut self, ctx: Context) {
+        if ctx.key_down(Key::Delete) {
+            for &id in &self.selected {
+                self.circuit.remove(id);
+            }
+
+            self.selected.clear();
+        }
+
+        if ctx.key_down(Key::Escape) {
+            self.selected.clear();
+        }
+    }
+
+    fn update_settings(&mut self, ctx: Context) {
+        if ctx.key_down(Key::Escape) {
+            self.settings = None;
         }
     }
 }
@@ -103,6 +131,10 @@ impl<'frame> Context<'frame> {
 
     pub fn field_painter(self) -> egui::Painter {
         self.0.layer_painter(LayerId::background())
+    }
+
+    pub fn key_down(self, key: Key) -> bool {
+        self.0.input(|state| state.key_down(key))
     }
 }
 
