@@ -94,10 +94,21 @@ impl<'data> Element<'data> {
         let k1 = (endpoints[0].y - endpoints[1].y) / (endpoints[0].x - endpoints[1].x);
         let k2 = -1.0 / k1;
 
-        let intersection_x =
-            (k1 * endpoints[0].x - endpoints[0].y + k2 * point.x + point.y) / (k1 + k2);
+        let (intersection_x, intersection_y) = if k1.abs() == 1.0 {
+            let y01 = endpoints[0].y - k1 * endpoints[0].x;
+            let y02 = point.y - k2 * point.x;
 
-        let intersection_y = k1 * (intersection_x - endpoints[0].x) + endpoints[0].y;
+            let y = (y01 + y02) / 2.0;
+            let x = (y - y01) / k1;
+
+            (x, y)
+        } else {
+            let x = (k1 * endpoints[0].x - endpoints[0].y + k2 * point.x + point.y) / (k1 + k2);
+
+            let y = k1 * (x - endpoints[0].x) + endpoints[0].y;
+
+            (x, y)
+        };
 
         let angle = f32::atan2(
             endpoints[0].y - endpoints[1].y,
