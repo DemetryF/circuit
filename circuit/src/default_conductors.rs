@@ -26,9 +26,15 @@ impl Conductor for Resistor {
     }
 }
 
+impl Resistor {
+    pub fn new(resistance: f32) -> Self {
+        Self { resistance }
+    }
+}
+
 pub struct CurrentSource {
-    pub resistance: f32,
     pub emf: f32,
+    pub resistance: f32,
 }
 
 impl Conductor for CurrentSource {
@@ -38,5 +44,11 @@ impl Conductor for CurrentSource {
 
     fn resistance(&self) -> f32 {
         self.resistance
+    }
+}
+
+impl CurrentSource {
+    pub fn new(emf: f32, resistance: f32) -> Self {
+        Self { emf, resistance }
     }
 }
