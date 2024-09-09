@@ -7,9 +7,9 @@ use std::marker::PhantomData;
 use std::ops;
 
 use egui::{Color32, Pos2, Rect, Rounding, Vec2};
+use smallvec::SmallVec;
 
 use circuit::Conductor;
-use smallvec::SmallVec;
 
 use crate::utils::Painter;
 

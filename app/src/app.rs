@@ -5,14 +5,14 @@ mod field;
 
 use std::collections::HashSet;
 
-use action::Action;
-use control_panel::ControlPanel;
 use egui::{emath::TSTransform, InputState, LayerId, PointerButton, Pos2};
 
 use circuit::{circuit::ElementId, Circuit};
 
 use crate::element::{Element, ElementPos};
 use crate::utils::Painter;
+use action::Action;
+use control_panel::ControlPanel;
 
 use elements_panel::ElementsPanel;
 use field::Field;

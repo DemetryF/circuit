@@ -170,7 +170,6 @@ impl Action {
 
     pub fn draw(&self, ctx: Context, painter: Painter) {
         match *self {
-            // works
             Action::Adding { ty, first, second } => {
                 if let (Some(mouse_pos), Some(first), None) = (ctx.mouse_pos(), first, second) {
                     let endpoints = [first, mouse_pos]
@@ -191,7 +190,6 @@ impl Action {
                 }
             }
 
-            // works
             Action::Selection {
                 origin,
                 mouse_pos: mouse,

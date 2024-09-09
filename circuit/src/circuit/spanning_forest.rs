@@ -97,7 +97,7 @@ fn find_path(
     visited: &mut Vec<bool>,
 ) -> Option<Vec<[NodeIndex; 2]>> {
     if graph.neighbour_nodes(start).any(|node| node == end) {
-        return Some(vec![[end, start]]);
+        Some(vec![[end, start]])
     } else {
         for new_start in graph.neighbour_nodes(start) {
             if visited[new_start.0] {
