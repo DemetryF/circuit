@@ -42,7 +42,7 @@ where
         let (loops, loops_transposed) = self.graph.loops();
 
         for (i, id) in self.ids.iter().enumerate() {
-            let conductor = self.elements[&id].conductor.borrow();
+            let conductor = self.elements[id].conductor.borrow();
 
             self.resistances[(i, i)] = conductor.resistance();
             self.emf[(i, 0)] = conductor.emf();

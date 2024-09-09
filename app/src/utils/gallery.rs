@@ -24,9 +24,7 @@ where
             let num_columns = num_columns as usize;
 
             ui.columns(num_columns, |columns| {
-                for (column, (widget, react)) in
-                    (0..num_columns).into_iter().cycle().zip(self.widgets)
-                {
+                for (column, (widget, react)) in (0..num_columns).cycle().zip(self.widgets) {
                     let response = columns[column].add_sized(Vec2::splat(width), widget);
 
                     (react)(response)
