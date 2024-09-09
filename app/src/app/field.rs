@@ -178,7 +178,7 @@ fn start_moving(ctx: Context<'_>, action: &mut Action, state: &mut AppState<'_>)
     });
 }
 
-fn update_selected(state: &mut AppState<'_>, ctx: Context<'_>, response: &egui::Response) {
+fn update_selected(state: &mut AppState, ctx: Context, response: &egui::Response) {
     if let Some(Hovered { id, .. }) = state.hovered {
         let pressed_shift = ctx.0.input(|state| state.modifiers.shift);
 
@@ -188,9 +188,7 @@ fn update_selected(state: &mut AppState<'_>, ctx: Context<'_>, response: &egui::
             } else {
                 state.selected.insert(id);
             }
-        }
-
-        if response.clicked() {
+        } else if response.clicked() {
             state.selected.clear();
 
             if !state.selected.contains(&id) {
