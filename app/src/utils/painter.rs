@@ -6,7 +6,7 @@ use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke};
 pub struct Painter<'ui> {
     painter: &'ui egui::Painter,
 
-    transform: TSTransform,
+    pub transform: TSTransform,
 }
 
 impl<'ui> Painter<'ui> {
