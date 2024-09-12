@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 circuit = { path = "../circuit", features = ["default_conductors"] }
 
-egui_extras = { version = "*", features = ["default", "all_loaders"] }
 eframe = "0.28.1"
 egui = "0.28.1"
 smallvec = "1.13.2"
