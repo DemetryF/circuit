@@ -1,0 +1,1 @@
+An electrical circuit simulating library using `nalgebra` for linear algebra based on loop current method.
